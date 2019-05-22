@@ -15,13 +15,15 @@ typedef enum _TOKEN_TYPE {
 
 typedef struct _TOKEN {
     TOKEN_TYPE type;
-    union {
-        char *string;
-        double number;
-    };
+    
+    char *string;
+    double number;
+    int start;
+    int end;
+    int size;
 } TOKEN;
 
-#define TOKEN_COUNT 25
+#define TOKEN_COUNT 20
 
 typedef struct _JSON {
     TOKEN tokens[TOKEN_COUNT];
@@ -65,35 +67,40 @@ void parseJSON(char *doc, int size, JSON *json)
     if(doc[pos] != '{')
         return;
     pos++;
-
+    int temp_pos=pos-1;
     while(pos<size)
     {
         switch(doc[pos])
         {
+	    case ',':
+	    {
+		temp_pos-=2;
+	    }
+	    break;
             case '"':
             {
                 char *begin = doc + pos + 1;
                 char *end = strchr(begin, '"');
                 if(end==NULL)
-                    break;
-                
+                    break; 
                 int stringLength = end-begin;
 
                 json->tokens[tokenIndex].type = TOKEN_STRING;
+		json->tokens[tokenIndex].start = temp_pos;
+		json->tokens[tokenIndex].end = json->tokens[tokenIndex].start + stringLength;
                 json->tokens[tokenIndex].string = malloc(stringLength + 1);
                 memset(json->tokens[tokenIndex].string, 0, stringLength + 1);
-
+		
                 memcpy(json->tokens[tokenIndex].string, begin, stringLength);
 
                 tokenIndex++;
 
                 pos = pos + stringLength + 1;
+		temp_pos = temp_pos + stringLength + 1;
             }
             break;
             case '[':
             {
-                
-
                 while(doc[pos] != ']')
                 {
                     if(doc[pos]=='"')
@@ -103,10 +110,11 @@ void parseJSON(char *doc, int size, JSON *json)
                         if(end==NULL)
                             break;
                         int stringLength = end - begin;
-
+		
                         json->tokens[tokenIndex].type = TOKEN_STRING;
                         json->tokens[tokenIndex].string = malloc(stringLength+1);
-                        
+                       	json->tokens[tokenIndex].start = temp_pos;
+			json->tokens[tokenIndex].end = json->tokens[tokenIndex].start + stringLength; 
                         memset(json->tokens[tokenIndex].string, 0, stringLength+1);
 
                         memcpy(json->tokens[tokenIndex].string, begin, stringLength);
@@ -114,8 +122,10 @@ void parseJSON(char *doc, int size, JSON *json)
                         tokenIndex++;
 
                         pos = pos + stringLength + 1;
+			temp_pos = temp_pos + stringLength + 1;
                     }
                     pos++;
+		    temp_pos++;
                 }
             }
             break;
@@ -141,16 +151,19 @@ void parseJSON(char *doc, int size, JSON *json)
 
                 json->tokens[tokenIndex].type = TOKEN_NUMBER;
                 json->tokens[tokenIndex].number = atof(buffer);
-
+		json->tokens[tokenIndex].start = temp_pos;
+                json->tokens[tokenIndex].end = json->tokens[tokenIndex].start + stringLength;
                 free(buffer);
 
                 tokenIndex++;
 
                 pos = pos+stringLength + 1;
+		temp_pos = temp_pos + stringLength + 1;
             }
             break;
         }
         pos++;
+	temp_pos++;
     }
 }
 
@@ -167,8 +180,6 @@ int main(int argc, char **argv)
 {
     int size;
 
-
-
     char *doc = readFile(argv[1], &size);
     if(doc==NULL)
         return -1;
@@ -181,7 +192,7 @@ int main(int argc, char **argv)
 
     for(int i=0; i<TOKEN_COUNT; i++)
     {
-        printf("[%2d] %s (size=, , JSMN_STRING)\n", i, json.tokens[i].string);    
+        printf("[%2d] %s (size=, %d~%d, JSMN_STRING)\n", i+1, json.tokens[i].string, json.tokens[i].start, json.tokens[i].end);    
     }
 
     freeJSON(&json);
